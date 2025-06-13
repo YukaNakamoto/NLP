@@ -1,16 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-NLP Project 1.5: Twitter Sentiment Analysis Pipeline
-- Task1: Exploratory Data Analysis (EDA)
-- Task2: Preprocessing
-- Task3: Modeling (Naive Bayes, FFNN, Binary Classification)
-- Task4: Semantic Text Similarity
-
-Requirements:
-- Python 3.x
-- pandas, numpy, matplotlib, seaborn, nltk, sklearn, wordcloud, tensorflow, transformers
-"""
-
 import pandas as pd                          # for data manipulation
 import numpy as np                           # for numerical operations
 import re                                    # for regular expressions
@@ -34,15 +21,11 @@ from sklearn.utils import resample           # for handling class imbalance
 nltk.download('stopwords')
 nltk.download('punkt')  # tokenizer data
 
-#-------------------------------------------
-# Load dataset
-#-------------------------------------------
+
 # Load CSV of tweets with ISO-8859-1 encoding to handle special characters
 df = pd.read_csv('TweetSentiment.csv', encoding='ISO-8859-1')
 
-#-------------------------------------------
-# Task 1: Exploratory Data Analysis (EDA)
-#-------------------------------------------
+# Task 1: Exploratory Data Analysis 
 # Plot distribution of sentiment labels
 plt.figure(figsize=(6,4))
 sns.countplot(x='sentiment', data=df)
@@ -68,14 +51,13 @@ wc = WordCloud(
     width=800, height=400,
     background_color='white',
     stopwords=set(stopwords.words('english'))
+    # stopwords=set()
 )
 wc.generate(all_text)
 wc.to_file('eda_wordcloud.png')
 
-#-------------------------------------------
-# Task 2: Preprocessing
-#-------------------------------------------
 
+# Task 2: Preprocessing
 def clean_text(text):
     """
     Clean tweet text by removing mentions, hashtags, URLs, lowercasing, and trimming whitespace.
@@ -107,10 +89,7 @@ def preprocess_tokens(text):
 # Create final processed text column
 df['processed'] = df['clean_text'].apply(preprocess_tokens)
 
-#-------------------------------------------
 # Task 3: Modeling
-#-------------------------------------------
-
 # Split features (X) and labels (y)
 X = df['processed']
 y = df['sentiment']
@@ -131,9 +110,8 @@ train_resampled = pd.concat(resampled)
 X_train = train_resampled['processed']
 y_train = train_resampled['sentiment']
 
-#-------------------------------------------
+
 # 3.1 Naive Bayes Classification
-#-------------------------------------------
 # Convert text to TF-IDF features with a limit on vocabulary size
 vectorizer_nb = TfidfVectorizer(max_features=5000)
 X_train_nb = vectorizer_nb.fit_transform(X_train)
@@ -147,16 +125,17 @@ y_pred_nb = nb_model.predict(X_test_nb)
 print("Naive Bayes Classification Report:\n", classification_report(y_test, y_pred_nb))
 print("Confusion Matrix:\n", confusion_matrix(y_test, y_pred_nb))
 
-#-------------------------------------------
+
 # 3.2 Feed-Forward Neural Network (FFNN)
-#-------------------------------------------
 # Prepare TF-IDF features for NN as dense arrays
 vectorizer_nn = TfidfVectorizer(max_features=5000)
 X_train_nn = vectorizer_nn.fit_transform(X_train).toarray()
 X_test_nn = vectorizer_nn.transform(X_test).toarray()
 # map sentiment labels to numeric classes
 label_map = {'negative':0,'neutral':1,'positive':2}
-\ nmodel_ffnn = Sequential([
+
+# define FFNN model
+model_ffnn = Sequential([
     Dense(128, activation='relu', input_shape=(X_train_nn.shape[1],)),  # hidden layer
     Dropout(0.5),                                                      # dropout for regularization
     Dense(3, activation='softmax')                                     # output layer for 3 classes
@@ -180,9 +159,8 @@ y_pred_nn_labels = np.argmax(y_pred_nn, axis=1)
 print("FFNN Classification Report:\n", classification_report(y_test.map(label_map).values, y_pred_nn_labels))
 print("Confusion Matrix:\n", confusion_matrix(y_test.map(label_map).values, y_pred_nn_labels))
 
-#-------------------------------------------
+
 # 3.3 Binary Classification (Positive vs. Negative)
-#-------------------------------------------
 # filter out neutral tweets
 bin_df = df[df['sentiment'] != 'neutral']
 Xb = bin_df['processed']
@@ -199,9 +177,8 @@ nb_bin.fit(Xb_train_b, yb_train)
 yb_pred = nb_bin.predict(Xb_test_b)
 print("Binary NB Report:\n", classification_report(yb_test, yb_pred))
 
-#-------------------------------------------
+
 # Task 4: Semantic Text Similarity
-#-------------------------------------------
 # Load GloVe embeddings from file into a dictionary
 embeddings = {}
 with open('glove.6B.100d.txt', encoding='utf8') as f:
