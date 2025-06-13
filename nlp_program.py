@@ -30,52 +30,46 @@ from tensorflow.keras.layers import Dense, Dropout
 from transformers import BertTokenizer, BertForSequenceClassification, Trainer, TrainingArguments
 from sklearn.utils import resample
 
-# Ensure NLTK data is downloaded
 nltk.download('stopwords')
 nltk.download('punkt')
 
 # Load dataset
-df = pd.read_csv('TweetSentiment.csv')  # adjust path as needed
+df = pd.read_csv('TweetSentiment.csv', encoding='ISO-8859-1')
 
 # Task 1: EDA
-## 1. Class distribution
 plt.figure(figsize=(6,4))
 sns.countplot(x='sentiment', data=df)
-plt.title('Sentiment Distribution (感情の分布)')
-plt.xlabel('Sentiment (感情)')
-plt.ylabel('Count (件数)')
+plt.title('Sentiment Distribution')
+plt.xlabel('Sentiment')
+plt.ylabel('Count')
 plt.savefig('eda_sentiment_distribution.png', dpi=300)
 plt.close()
 
-## 2. Text length distribution
 df['text_length'] = df['text'].str.len()
 plt.figure(figsize=(6,4))
 sns.histplot(df['text_length'], bins=30)
-plt.title('Tweet Length Distribution (ツイート文字数分布)')
-plt.xlabel('Length (文字数)')
-plt.ylabel('Frequency (頻度)')
+plt.title('Tweet Length Distribution')
+plt.xlabel('Length')
+plt.ylabel('Frequency')
 plt.savefig('eda_length_distribution.png', dpi=300)
 plt.close()
 
-## 3. WordCloud
-all_text = ' '.join(df['text'].tolist())
+all_text = ' '.join(df['text'].fillna('').astype(str).tolist())
 wc = WordCloud(width=800, height=400, background_color='white', stopwords=set(stopwords.words('english')))
 wc.generate(all_text)
 wc.to_file('eda_wordcloud.png')
 
 # Task 2: Preprocessing
 def clean_text(text):
-    """Remove mentions, hashtags, URLs, lower case, strip spaces."""
-    text = re.sub(r'@[A-Za-z0-9_]+', '', text)  # remove @mentions
-    text = re.sub(r'#\w+', '', text)             # remove hashtags
-    text = re.sub(r'http\S+|www\.\S+', '', text)  # remove URLs
+    text = re.sub(r'@[A-Za-z0-9_]+', '', text)
+    text = re.sub(r'#\w+', '', text)
+    text = re.sub(r'http\S+|www\.\S+', '', text)
     text = text.lower().strip()
     text = re.sub(r"\s+", " ", text)
     return text
 
-df['clean_text'] = df['text'].apply(clean_text)
+df['clean_text'] = df['text'].fillna('').astype(str).apply(clean_text)
 
-# Tokenize, remove stopwords, stemming
 stop_words = set(stopwords.words('english'))
 ps = PorterStemmer()
 
@@ -86,13 +80,12 @@ def preprocess_tokens(text):
 
 df['processed'] = df['clean_text'].apply(preprocess_tokens)
 
+
 # Task 3: Modeling
-# Split data
 X = df['processed']
 y = df['sentiment']
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
 
-# Optional: handle imbalance via upsampling minority classes
 train_df = pd.concat([X_train, y_train], axis=1)
 max_size = train_df['sentiment'].value_counts().max()
 resampled = []
@@ -101,6 +94,7 @@ for sentiment, group in train_df.groupby('sentiment'):
 train_resampled = pd.concat(resampled)
 X_train = train_resampled['processed']
 y_train = train_resampled['sentiment']
+
 
 # 3.1 Naive Bayes
 vectorizer_nb = TfidfVectorizer(max_features=5000)
@@ -113,6 +107,7 @@ nb_model.fit(X_train_nb, y_train)
 y_pred_nb = nb_model.predict(X_test_nb)
 print("Naive Bayes Classification Report:\n", classification_report(y_test, y_pred_nb))
 print("Confusion Matrix:\n", confusion_matrix(y_test, y_pred_nb))
+
 
 # 3.2 FFNN
 vectorizer_nn = TfidfVectorizer(max_features=5000)
@@ -133,7 +128,7 @@ y_pred_nn_labels = np.argmax(y_pred_nn, axis=1)
 print("FFNN Classification Report:\n", classification_report(y_test.map({'negative':0,'neutral':1,'positive':2}).values, y_pred_nn_labels))
 print("Confusion Matrix:\n", confusion_matrix(y_test.map({'negative':0,'neutral':1,'positive':2}).values, y_pred_nn_labels))
 
-# 3.3 Binary Classification (Positive vs Negative)
+# 3.3 Binary Classification
 bin_df = df[df['sentiment'] != 'neutral']
 Xb = bin_df['processed']; yb = bin_df['sentiment']
 Xb_train, Xb_test, yb_train, yb_test = train_test_split(Xb, yb, test_size=0.2, stratify=yb, random_state=42)
@@ -149,7 +144,6 @@ yb_pred = nb_bin.predict(Xb_test_b)
 print("Binary NB Report:\n", classification_report(yb_test, yb_pred))
 
 # Task 4: Semantic Text Similarity
-# Load pre-trained GloVe embeddings (example path)
 embeddings = {}
 with open('glove.6B.100d.txt', encoding='utf8') as f:
     for line in f:
@@ -165,16 +159,13 @@ def sentence_vector(sent):
 def cosine_sim(v1, v2):
     return np.dot(v1,v2)/(np.linalg.norm(v1)*np.linalg.norm(v2))
 
-# Randomly pick 15 positive tweets
 pos_texts = df[df['sentiment']=='positive']['processed'].sample(15, random_state=42).tolist()
 vecs = [sentence_vector(s) for s in pos_texts]
 
-# Compute pairwise cosine similarity (first 5 pairs)
 similarities = []
 for i in range(5):
     sim = cosine_sim(vecs[i], vecs[i+1])
     similarities.append((pos_texts[i], pos_texts[i+1], sim))
 
-# Display results
 for a, b, sim in similarities:
     print(f"Sentence A: {a}\nSentence B: {b}\nSimilarity: {sim:.4f}\n")
